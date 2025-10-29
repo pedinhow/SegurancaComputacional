@@ -11,9 +11,9 @@ import java.nio.charset.StandardCharsets;
 public class NodeHandler implements Runnable {
 
     private final Socket socket;
-    private final RingNode node; // Referência de volta ao nó principal
+    private final P2PNode node; // Referência de volta ao nó principal
 
-    public NodeHandler(Socket socket, RingNode node) {
+    public NodeHandler(Socket socket, P2PNode node) {
         this.socket = socket;
         this.node = node;
     }
@@ -38,7 +38,7 @@ public class NodeHandler implements Runnable {
             byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
 
             // 2. Verificar HMAC [cite: 288, 290]
-            boolean isHmacValid = SecurityUtils.checkHmac(RingNode.SHARED_SECRET_KEY, encryptedData, receivedHmac);
+            boolean isHmacValid = SecurityUtils.checkHmac(P2PNode.SHARED_SECRET_KEY, encryptedData, receivedHmac);
             if (!isHmacValid) {
                 node.log("FALHA DE SEGURANÇA: HMAC inválido (chave errada?). Mensagem descartada.");
                 return; // Requisito: Descartar a mensagem [cite: 291, 293]
@@ -46,7 +46,7 @@ public class NodeHandler implements Runnable {
             node.log("HMAC verificado com sucesso.");
 
             // 3. Decifrar [cite: 287]
-            byte[] decryptedData = SecurityUtils.decrypt(RingNode.SHARED_SECRET_KEY, encryptedData);
+            byte[] decryptedData = SecurityUtils.decrypt(P2PNode.SHARED_SECRET_KEY, encryptedData);
             String payload = new String(decryptedData, StandardCharsets.UTF_8);
             node.log("Mensagem decifrada: " + payload);
 

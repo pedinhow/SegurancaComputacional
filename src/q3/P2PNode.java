@@ -10,7 +10,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-public class RingNode {
+public class P2PNode {
 
     private final String nodeId; // ex: "P0"
     private final int port;
@@ -25,7 +25,7 @@ public class RingNode {
     // public static final byte[] SHARED_SECRET_KEY =
     //    "chave-errada-do-intruso".getBytes(StandardCharsets.UTF_8);
 
-    public RingNode(String nodeId, int port, int successorPort) {
+    public P2PNode(String nodeId, int port, int successorPort) {
         this.nodeId = nodeId;
         this.port = port;
         this.successorPort = successorPort;
@@ -42,7 +42,7 @@ public class RingNode {
             String id = args[0];
             int port = Integer.parseInt(args[1]);
             int successorPort = Integer.parseInt(args[2]);
-            new RingNode(id, port, successorPort).start();
+            new P2PNode(id, port, successorPort).start();
         } catch (Exception e) {
             System.err.println("Erro ao iniciar nó: " + e.getMessage());
         }
