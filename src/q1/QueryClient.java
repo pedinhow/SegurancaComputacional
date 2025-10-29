@@ -20,11 +20,11 @@ public class QueryClient {
     private static final int PORTA = 12345;
 
     // Chave secreta COMPARTILHADA (para HMAC e Cifra)
-    private static final byte[] CHAVE_SECRETA = DnsServer.CHAVE_SECRETA;
+    // private static final byte[] CHAVE_SECRETA = MiniDNSServer.CHAVE_SECRETA;
 
     // Para testar a falha (descomente a linha abaixo e comente a de cima)
-    // private static final byte[] CHAVE_SECRETA =
-    //    "chave-errada".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CHAVE_SECRETA =
+        "chave-errada".getBytes(StandardCharsets.UTF_8);
 
     public static void main(String[] args) {
 
@@ -78,6 +78,61 @@ public class QueryClient {
 
         String mensagemSegura = hmacHex + "::" + cifraHex;
         out.println(mensagemSegura);
+    }
+
+    /**
+     * Thread interna para escutar passivamente as mensagens do servidor.
+     */
+    static class ServerListener implements Runnable {
+
+        private final BufferedReader in;
+        private final byte[] chaveSecreta;
+
+        public ServerListener(BufferedReader in, byte[] chave) {
+            this.in = in;
+            this.chaveSecreta = chave;
+        }
+
+        @Override
+        public void run() {
+            try {
+                String linhaRecebida;
+                while (Thread.currentThread().isInterrupted() == false && (linhaRecebida = in.readLine()) != null) {
+
+                    try {
+                        String[] partes = linhaRecebida.split("::");
+                        if (partes.length != 2) {
+                            System.err.println("\n[Servidor Resposta] ERRO: Formato inválido.");
+                            continue;
+                        }
+
+                        byte[] hmacRecebido = ConverterUtils.hex2Bytes(partes[0]);
+                        byte[] dadosCifrados = ConverterUtils.hex2Bytes(partes[1]);
+
+                        // 1. Verificar HMAC
+                        boolean hmacValido = SecurityUtils.checarHmac(chaveSecreta, dadosCifrados, hmacRecebido);
+
+                        if (!hmacValido) {
+                            System.err.println("\n[Servidor Resposta] FALHA DE SEGURANÇA: HMAC inválido. Mensagem descartada.");
+                            continue;
+                        }
+
+                        // 2. Decifrar
+                        byte[] dadosDecifrados = SecurityUtils.decifrar(chaveSecreta, dadosCifrados);
+                        String mensagem = new String(dadosDecifrados, StandardCharsets.UTF_8);
+
+                        // 3. Exibir a mensagem
+                        System.out.println("\n[Servidor Resposta] " + mensagem);
+                        System.out.print("> ");
+
+                    } catch (Exception e) {
+                        System.err.println("\n[Servidor Resposta] Erro ao processar mensagem: " + e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                // Socket fechado
+            }
+        }
     }
 }
 

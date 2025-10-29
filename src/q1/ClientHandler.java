@@ -52,7 +52,7 @@ class ClientHandler implements Runnable {
 
                     // 2. Verificar HMAC (Integridade e Autenticidade)
                     //    Se a chave estiver errada, a verificação falha (Teste de Falha)
-                    boolean hmacValido = SecurityUtils.checarHmac(DnsServer.CHAVE_SECRETA, dadosCifrados, hmacRecebido);
+                    boolean hmacValido = SecurityUtils.checarHmac(MiniDNSServer.CHAVE_SECRETA, dadosCifrados, hmacRecebido);
 
                     if (!hmacValido) {
                         System.err.println("[Handler] FALHA DE SEGURANÇA: HMAC inválido (chave errada?). Mensagem descartada.");
@@ -63,7 +63,7 @@ class ClientHandler implements Runnable {
                     System.out.println("[Handler] HMAC verificado com sucesso (Autêntico e Íntegro).");
 
                     // 3. Decifrar (Confidencialidade)
-                    byte[] dadosDecifrados = SecurityUtils.decifrar(DnsServer.CHAVE_SECRETA, dadosCifrados);
+                    byte[] dadosDecifrados = SecurityUtils.decifrar(MiniDNSServer.CHAVE_SECRETA, dadosCifrados);
                     String comando = new String(dadosDecifrados, StandardCharsets.UTF_8);
                     System.out.println("[Handler] Comando decifrado: " + comando);
 
@@ -71,7 +71,7 @@ class ClientHandler implements Runnable {
                     String resposta = processarComando(comando);
 
                     // 5. Enviar resposta segura (Cifrar e Assinar com HMAC)
-                    enviarMensagemSegura(resposta, DnsServer.CHAVE_SECRETA);
+                    enviarMensagemSegura(resposta, MiniDNSServer.CHAVE_SECRETA);
 
                 } catch (Exception e) {
                     System.err.println("[Handler] Erro ao processar mensagem: " + e.getMessage());
@@ -100,7 +100,7 @@ class ClientHandler implements Runnable {
         String operacao = partes[0].toUpperCase();
 
         switch (operacao) {
-            case "REGISTER_QUERY":
+            case "SUBSCRIBE":
                 // Cliente requisitante se registra para receber atualizações
                 if (!clientesRequisitantes.contains(this.out)) {
                     clientesRequisitantes.add(this.out);
@@ -108,7 +108,7 @@ class ClientHandler implements Runnable {
                 }
                 return "OK;Registrado para atualizações.";
 
-            case "RESOLVE":
+            case "QUERY":
                 if (partes.length < 2) return "ERROR;Formato inválido. Use: RESOLVE <nome>";
                 String nome = partes[1];
                 String ip = mapaDns.get(nome);
@@ -172,9 +172,9 @@ class ClientHandler implements Runnable {
             for (PrintWriter clienteOut : clientesRequisitantes) {
                 try {
                     // Envia a notificação de forma segura
-                    byte[] dadosCifrados = SecurityUtils.cifrar(DnsServer.CHAVE_SECRETA,
+                    byte[] dadosCifrados = SecurityUtils.cifrar(MiniDNSServer.CHAVE_SECRETA,
                             mensagem.getBytes(StandardCharsets.UTF_8));
-                    byte[] hmac = SecurityUtils.calcularHmac(DnsServer.CHAVE_SECRETA, dadosCifrados);
+                    byte[] hmac = SecurityUtils.calcularHmac(MiniDNSServer.CHAVE_SECRETA, dadosCifrados);
 
                     String hmacHex = ConverterUtils.bytes2Hex(hmac);
                     String cifraHex = ConverterUtils.bytes2Hex(dadosCifrados);

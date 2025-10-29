@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Servidor Mini-DNS (Questão 1).
  * Implementação completa com segurança (HMAC + Cifra) e binding dinâmico.
  */
-public class DnsServer {
+public class MiniDNSServer {
 
     private static final int PORTA = 12345;
 
@@ -28,7 +28,7 @@ public class DnsServer {
     public static final byte[] CHAVE_SECRETA =
             "chave-secreta-super-segura".getBytes(StandardCharsets.UTF_8);
 
-    public DnsServer() {
+    public MiniDNSServer() {
         // Popula o mapa inicial
         mapaDns.put("servidor1", "192.168.0.10");
         mapaDns.put("servidor2", "192.168.0.20");
@@ -61,7 +61,7 @@ public class DnsServer {
     }
 
     public static void main(String[] args) {
-        DnsServer server = new DnsServer();
+        MiniDNSServer server = new MiniDNSServer();
         server.iniciar();
     }
 }

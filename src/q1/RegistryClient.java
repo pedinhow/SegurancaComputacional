@@ -20,7 +20,7 @@ public class RegistryClient {
     private static final int PORTA = 12345;
 
     // Chave secreta COMPARTILHADA (para HMAC e Cifra)
-    private static final byte[] CHAVE_SECRETA = DnsServer.CHAVE_SECRETA;
+    private static final byte[] CHAVE_SECRETA = MiniDNSServer.CHAVE_SECRETA;
 
     // Para testar a falha (descomente a linha abaixo e comente a de cima)
     // private static final byte[] CHAVE_SECRETA =

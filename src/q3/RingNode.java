@@ -26,12 +26,12 @@ public class RingNode {
     private final int successorPort;
 
     // Chave secreta COMPARTILHADA (todos os nós devem ter a mesma)
-    public static final byte[] CHAVE_SECRETA =
-            "chave-secreta-do-anel-p2p".getBytes(StandardCharsets.UTF_8);
+    //public static final byte[] CHAVE_SECRETA =
+            // "chave-secreta-do-anel-p2p".getBytes(StandardCharsets.UTF_8);
 
     // Para testar a falha de segurança (Nó P7 ou chave errada)
-    // public static final byte[] CHAVE_SECRETA =
-    //    "chave-errada-do-intruso".getBytes(StandardCharsets.UTF_8);
+    public static final byte[] CHAVE_SECRETA =
+        "chave-errada-do-intruso".getBytes(StandardCharsets.UTF_8);
 
     public RingNode(String myId, int myPort, int successorPort) {
         this.myId = myId;

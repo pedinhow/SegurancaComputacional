@@ -21,11 +21,11 @@ public class CalculatorClient {
     private static final int DIR_PORTA = 12346;
 
     // Chave secreta COMPARTILHADA
-    private static final byte[] CHAVE_SECRETA = DirectoryServer.CHAVE_SECRETA;
+    // private static final byte[] CHAVE_SECRETA = DirectoryServer.CHAVE_SECRETA;
 
     // Para testar a falha de segurança[cite: 756]:
-    // private static final byte[] CHAVE_SECRETA =
-    //    "chave-errada".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CHAVE_SECRETA =
+        "chave-errada".getBytes(StandardCharsets.UTF_8);
 
     public static void main(String[] args) {
 
