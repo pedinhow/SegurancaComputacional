@@ -9,130 +9,94 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Cliente Requisitante (Questão 1).
- * - Envia comandos de consulta (RESOLVE).
- * - Ouve atualizações (binding dinâmico) numa thread separada.
- */
 public class QueryClient {
 
     private static final String HOST = "localhost";
-    private static final int PORTA = 12345;
+    private static final int PORT = 12345;
 
-    // Chave secreta COMPARTILHADA (para HMAC e Cifra)
-    // private static final byte[] CHAVE_SECRETA = MiniDNSServer.CHAVE_SECRETA;
+    // Chave secreta COMPARTILHADA
+    private static final byte[] SHARED_SECRET_KEY = MiniDNSServer.SHARED_SECRET_KEY;
 
-    // Para testar a falha (descomente a linha abaixo e comente a de cima)
-    private static final byte[] CHAVE_SECRETA =
-        "chave-errada".getBytes(StandardCharsets.UTF_8);
+    // Para testar a falha (descomente a linha abaixo e comente a de cima) [cite: 242]
+    // private static final byte[] SHARED_SECRET_KEY =
+    //    "chave-errada".getBytes(StandardCharsets.UTF_8);
 
     public static void main(String[] args) {
-
         try (
-                Socket socket = new Socket(HOST, PORTA);
+                Socket socket = new Socket(HOST, PORT);
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 BufferedReader consoleIn = new BufferedReader(new InputStreamReader(System.in))
         ) {
             System.out.println("[Cliente Requisitante] Conectado ao servidor.");
-
-            // 1. Inicia a thread para ouvir atualizações do servidor
-            Thread listenerThread = new Thread(new ServerListener(in, CHAVE_SECRETA));
+            Thread listenerThread = new Thread(new ServerListener(in, SHARED_SECRET_KEY));
             listenerThread.start();
 
             // 2. Registra-se no servidor para receber atualizações
-            enviarMensagemSegura(out, "REGISTER_QUERY", CHAVE_SECRETA);
+            sendSecureMessage(out, "REGISTER_QUERY", SHARED_SECRET_KEY);
 
-            // 3. Loop principal para enviar comandos (entrada do usuário)
             System.out.println("Comandos disponíveis: RESOLVE <nome> | SAIR");
             System.out.print("> ");
-
             String userInput;
             while ((userInput = consoleIn.readLine()) != null) {
-                if ("SAIR".equalsIgnoreCase(userInput)) {
-                    break;
-                }
-
-                enviarMensagemSegura(out, userInput, CHAVE_SECRETA);
+                if ("SAIR".equalsIgnoreCase(userInput)) break;
+                sendSecureMessage(out, userInput, SHARED_SECRET_KEY);
                 System.out.print("> ");
             }
-
             listenerThread.interrupt();
             System.out.println("[Cliente Requisitante] Desconectado.");
-
         } catch (Exception e) {
             System.err.println("[Cliente Requisitante] Erro: " + e.getMessage());
         }
     }
 
-    /**
-     * Prepara e envia uma mensagem segura (Cifrada + HMAC) para o servidor.
-     */
-    public static void enviarMensagemSegura(PrintWriter out, String mensagemPlana, byte[] chave) throws Exception {
-        byte[] dadosCifrados = SecurityUtils.cifrar(chave,
-                mensagemPlana.getBytes(StandardCharsets.UTF_8));
-        byte[] hmac = SecurityUtils.calcularHmac(chave, dadosCifrados);
-
-        String hmacHex = ConverterUtils.bytes2Hex(hmac);
-        String cifraHex = ConverterUtils.bytes2Hex(dadosCifrados);
-
-        String mensagemSegura = hmacHex + "::" + cifraHex;
-        out.println(mensagemSegura);
-    }
-
-    /**
-     * Thread interna para escutar passivamente as mensagens do servidor.
-     */
-    static class ServerListener implements Runnable {
-
-        private final BufferedReader in;
-        private final byte[] chaveSecreta;
-
-        public ServerListener(BufferedReader in, byte[] chave) {
-            this.in = in;
-            this.chaveSecreta = chave;
-        }
-
-        @Override
-        public void run() {
-            try {
-                String linhaRecebida;
-                while (Thread.currentThread().isInterrupted() == false && (linhaRecebida = in.readLine()) != null) {
-
-                    try {
-                        String[] partes = linhaRecebida.split("::");
-                        if (partes.length != 2) {
-                            System.err.println("\n[Servidor Resposta] ERRO: Formato inválido.");
-                            continue;
-                        }
-
-                        byte[] hmacRecebido = ConverterUtils.hex2Bytes(partes[0]);
-                        byte[] dadosCifrados = ConverterUtils.hex2Bytes(partes[1]);
-
-                        // 1. Verificar HMAC
-                        boolean hmacValido = SecurityUtils.checarHmac(chaveSecreta, dadosCifrados, hmacRecebido);
-
-                        if (!hmacValido) {
-                            System.err.println("\n[Servidor Resposta] FALHA DE SEGURANÇA: HMAC inválido. Mensagem descartada.");
-                            continue;
-                        }
-
-                        // 2. Decifrar
-                        byte[] dadosDecifrados = SecurityUtils.decifrar(chaveSecreta, dadosCifrados);
-                        String mensagem = new String(dadosDecifrados, StandardCharsets.UTF_8);
-
-                        // 3. Exibir a mensagem
-                        System.out.println("\n[Servidor Resposta] " + mensagem);
-                        System.out.print("> ");
-
-                    } catch (Exception e) {
-                        System.err.println("\n[Servidor Resposta] Erro ao processar mensagem: " + e.getMessage());
-                    }
-                }
-            } catch (Exception e) {
-                // Socket fechado
-            }
-        }
+    public static void sendSecureMessage(PrintWriter out, String plainMessage, byte[] key) throws Exception {
+        byte[] data = plainMessage.getBytes(StandardCharsets.UTF_8);
+        byte[] encryptedData = SecurityUtils.encrypt(key, data);
+        byte[] hmac = SecurityUtils.calculateHmac(key, encryptedData);
+        out.println(ConverterUtils.bytes2Hex(hmac) + "::" + ConverterUtils.bytes2Hex(encryptedData));
     }
 }
 
+class ServerListener implements Runnable {
+    private final BufferedReader in;
+    private final byte[] sharedKey;
+
+    public ServerListener(BufferedReader in, byte[] key) {
+        this.in = in;
+        this.sharedKey = key;
+    }
+
+    @Override
+    public void run() {
+        try {
+            String receivedLine;
+            while (Thread.currentThread().isInterrupted() == false && (receivedLine = in.readLine()) != null) {
+                try {
+                    String[] parts = receivedLine.split("::");
+                    if (parts.length != 2) {
+                        System.err.println("\n[Servidor Resposta] ERRO: Formato inválido.");
+                        continue;
+                    }
+                    byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
+                    byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
+
+                    boolean isHmacValid = SecurityUtils.checkHmac(sharedKey, encryptedData, receivedHmac);
+                    if (!isHmacValid) {
+                        System.err.println("\n[Servidor Resposta] FALHA DE SEGURANÇA: HMAC inválido. Mensagem descartada.");
+                        continue;
+                    }
+
+                    byte[] decryptedData = SecurityUtils.decrypt(sharedKey, encryptedData);
+                    String message = new String(decryptedData, StandardCharsets.UTF_8);
+                    System.out.println("\n[Servidor Resposta] " + message);
+                    System.out.print("> ");
+                } catch (Exception e) {
+                    System.err.println("\n[Servidor Resposta] Erro ao processar mensagem: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            // Socket fechado
+        }
+    }
+}

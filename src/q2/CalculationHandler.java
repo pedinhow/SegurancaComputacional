@@ -9,15 +9,14 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Handler para o servidor de calculadora.
- */
-class CalculationHandler implements Runnable {
+public class CalculationHandler implements Runnable {
 
     private final Socket socket;
+    private final byte[] sharedKey;
 
-    public CalculationHandler(Socket socket) {
+    public CalculationHandler(Socket socket, byte[] key) {
         this.socket = socket;
+        this.sharedKey = key;
     }
 
     @Override
@@ -26,40 +25,36 @@ class CalculationHandler implements Runnable {
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)
         ) {
-            String linhaRecebida = in.readLine();
-            if (linhaRecebida == null) return;
+            String receivedLine = in.readLine();
+            if (receivedLine == null) return;
 
-            System.out.println("[CalcHandler] Mensagem de cálculo recebida (bruta): " + linhaRecebida);
-
+            System.out.println("[CalcHandler] Mensagem de cálculo recebida (bruta): " + receivedLine);
             try {
                 // 1. Decodificar e Verificar Segurança
-                String[] partes = linhaRecebida.split("::");
-                if (partes.length != 2) throw new SecurityException("Formato inválido.");
+                String[] parts = receivedLine.split("::");
+                if (parts.length != 2) throw new SecurityException("Formato inválido.");
+                byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
+                byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
 
-                byte[] hmacRecebido = ConverterUtils.hex2Bytes(partes[0]);
-                byte[] dadosCifrados = ConverterUtils.hex2Bytes(partes[1]);
-
-                boolean hmacValido = SecurityUtils.checarHmac(DirectoryServer.CHAVE_SECRETA, dadosCifrados, hmacRecebido);
-                if (!hmacValido) throw new SecurityException("HMAC inválido.");
-
+                // 2. Verificar HMAC
+                boolean isHmacValid = SecurityUtils.checkHmac(this.sharedKey, encryptedData, receivedHmac);
+                if (!isHmacValid) throw new SecurityException("HMAC inválido.");
                 System.out.println("[CalcHandler] HMAC verificado.");
 
-                // 2. Decifrar
-                byte[] dadosDecifrados = SecurityUtils.decifrar(DirectoryServer.CHAVE_SECRETA, dadosCifrados);
-                String comando = new String(dadosDecifrados, StandardCharsets.UTF_8);
-                System.out.println("[CalcHandler] Comando decifrado: " + comando);
+                // 3. Decifrar
+                byte[] decryptedData = SecurityUtils.decrypt(this.sharedKey, encryptedData);
+                String command = new String(decryptedData, StandardCharsets.UTF_8);
+                System.out.println("[CalcHandler] Comando decifrado: " + command);
 
-                // 3. Processar o cálculo
-                String resposta = calcular(comando);
+                // 4. Processar o cálculo
+                String response = calculate(command);
 
-                // 4. Enviar resposta segura
-                enviarMensagemSegura(out, resposta, DirectoryServer.CHAVE_SECRETA);
+                // 5. Enviar resposta segura
+                sendSecureMessage(out, response, this.sharedKey);
 
             } catch (Exception e) {
                 System.err.println("[CalcHandler] Erro de segurança ou cálculo: " + e.getMessage());
-                // Não enviar resposta em caso de falha de segurança
             }
-
         } catch (Exception e) {
             // Silencioso
         } finally {
@@ -69,51 +64,37 @@ class CalculationHandler implements Runnable {
         }
     }
 
-    /**
-     * Realiza a operação de cálculo.
-     */
-    private String calcular(String comando) {
-        String[] partes = comando.split(" ");
-        if (partes.length < 3) return "ERROR;Formato inválido. Use: <OPERACAO> <n1> <n2>";
+    private String calculate(String command) {
+        String[] parts = command.split(" ");
+        if (parts.length < 3) return "ERROR;Formato inválido. Use: <OPERACAO> <n1> <n2>";
 
         try {
-            String operacao = partes[0].toUpperCase();
-            double n1 = Double.parseDouble(partes[1]);
-            double n2 = Double.parseDouble(partes[2]);
-            double resultado = 0;
+            String operation = parts[0].toUpperCase();
+            double n1 = Double.parseDouble(parts[1]);
+            double n2 = Double.parseDouble(parts[2]);
+            double result;
 
-            switch (operacao) {
-                case "SOMA":
-                    resultado = n1 + n2;
-                    break;
-                case "SUBTRACAO":
-                    resultado = n1 - n2;
-                    break;
-                case "MULTIPLICACAO":
-                    resultado = n1 * n2;
-                    break;
+            switch (operation) {
+                case "SOMA": result = n1 + n2; break;
+                case "SUBTRACAO": result = n1 - n2; break;
+                case "MULTIPLICACAO": result = n1 * n2; break;
                 case "DIVISAO":
                     if (n2 == 0) return "ERROR;Divisão por zero.";
-                    resultado = n1 / n2;
+                    result = n1 / n2;
                     break;
                 default:
-                    return "ERROR;Operação desconhecida: " + operacao;
+                    return "ERROR;Operação desconhecida: " + operation;
             }
-            return "OK;Resultado: " + resultado;
+            return "OK;Resultado: " + result;
         } catch (NumberFormatException e) {
             return "ERROR;Números inválidos.";
         }
     }
 
-    /**
-     * Envia uma mensagem segura (cifrada + HMAC) para o cliente.
-     */
-    private void enviarMensagemSegura(PrintWriter out, String mensagemPlana, byte[] chave) throws Exception {
-        byte[] dadosCifrados = SecurityUtils.cifrar(chave,
-                mensagemPlana.getBytes(StandardCharsets.UTF_8));
-        byte[] hmac = SecurityUtils.calcularHmac(chave, dadosCifrados);
-        String hmacHex = ConverterUtils.bytes2Hex(hmac);
-        String cifraHex = ConverterUtils.bytes2Hex(dadosCifrados);
-        out.println(hmacHex + "::" + cifraHex);
+    private void sendSecureMessage(PrintWriter out, String plainMessage, byte[] key) throws Exception {
+        byte[] data = plainMessage.getBytes(StandardCharsets.UTF_8);
+        byte[] encryptedData = SecurityUtils.encrypt(key, data);
+        byte[] hmac = SecurityUtils.calculateHmac(key, encryptedData);
+        out.println(ConverterUtils.bytes2Hex(hmac) + "::" + ConverterUtils.bytes2Hex(encryptedData));
     }
 }

@@ -8,28 +8,22 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Scanner;
 
-/**
- * Cliente de Calculadora (Questão 2).
- * - Pede ao usuário uma operação (ex: SOMA 10 5).
- * - Conecta-se ao DirectoryServer para DESCOBRIR o serviço[cite: 743, 744].
- * - Conecta-se ao CalculatorServer (retornado pelo diretório) para executar a operação.
- */
 public class CalculatorClient {
 
     private static final String DIR_HOST = "localhost";
-    private static final int DIR_PORTA = 12346;
+    private static final int DIR_PORT = 12346;
 
     // Chave secreta COMPARTILHADA
-    // private static final byte[] CHAVE_SECRETA = DirectoryServer.CHAVE_SECRETA;
+    private static final byte[] SHARED_SECRET_KEY = DirectoryServer.SHARED_SECRET_KEY;
 
-    // Para testar a falha de segurança[cite: 756]:
-    private static final byte[] CHAVE_SECRETA =
-        "chave-errada".getBytes(StandardCharsets.UTF_8);
+    // Para testar a falha de segurança [cite: 264]
+    // private static final byte[] SHARED_SECRET_KEY =
+    //    "chave-errada".getBytes(StandardCharsets.UTF_8);
 
     public static void main(String[] args) {
-
-        try (BufferedReader consoleIn = new BufferedReader(new InputStreamReader(System.in))) {
+        try (Scanner scanner = new Scanner(System.in)) {
             System.out.println("[Cliente Calc] Conectado.");
             System.out.println("Use o formato: <OPERACAO> <n1> <n2> (ex: SOMA 10 20)");
             System.out.println("Operações: SOMA, SUBTRACAO, MULTIPLICACAO, DIVISAO");
@@ -37,131 +31,103 @@ public class CalculatorClient {
             System.out.print("> ");
 
             String userInput;
-            while ((userInput = consoleIn.readLine()) != null) {
+            while ((userInput = scanner.nextLine()) != null) {
                 if ("SAIR".equalsIgnoreCase(userInput)) break;
 
-                String[] partesComando = userInput.split(" ");
-                if (partesComando.length < 1) {
+                String[] commandParts = userInput.split(" ");
+                if (commandParts.length < 1) {
                     System.out.print("> ");
                     continue;
                 }
-
-                String servico = partesComando[0].toUpperCase();
+                String service = commandParts[0].toUpperCase();
 
                 try {
-                    // 1. Descobrir o serviço
-                    String enderecoServidor = descobrirServico(servico);
-                    if (enderecoServidor == null) {
-                        System.err.println("Não foi possível descobrir o serviço: " + servico);
-                        System.out.print("> ");
-                        continue;
-                    }
-
-                    System.out.println("Serviço '" + servico + "' encontrado em: " + enderecoServidor + " (via Round Robin)");
+                    // 1. Descobrir o serviço [cite: 251]
+                    String serverAddress = discoverService(service);
+                    System.out.println("Serviço '" + service + "' encontrado em: " + serverAddress + " (via Round Robin)");
 
                     // 2. Executar o cálculo
-                    String resultado = executarCalculo(enderecoServidor, userInput);
-                    System.out.println("Resultado: " + resultado);
+                    String result = executeCalculation(serverAddress, userInput);
+                    System.out.println("Resultado: " + result);
 
                 } catch (Exception e) {
                     System.err.println("Erro durante a operação: " + e.getMessage());
                 }
-
                 System.out.print("> ");
             }
-
             System.out.println("[Cliente Calc] Desconectado.");
-
         } catch (Exception e) {
             System.err.println("[Cliente Calc] Erro: " + e.getMessage());
         }
     }
 
-    /**
-     * Conecta-se ao DirectoryServer para descobrir o endereço de um serviço.
-     */
-    private static String descobrirServico(String servico) throws Exception {
+    private static String discoverService(String service) throws Exception {
         try (
-                Socket socket = new Socket(DIR_HOST, DIR_PORTA);
+                Socket socket = new Socket(DIR_HOST, DIR_PORT);
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
         ) {
-            String comando = "DISCOVER " + servico;
+            String command = "DISCOVER " + service;
+            sendSecureMessage(out, command, SHARED_SECRET_KEY);
 
-            // Envia comando seguro
-            enviarMensagemSegura(out, comando, CHAVE_SECRETA);
+            String response = in.readLine();
+            if (response == null) throw new RuntimeException("Servidor de diretório não respondeu.");
 
-            // Ouve a resposta
-            String resposta = in.readLine();
-            if (resposta == null) throw new RuntimeException("Servidor de diretório não respondeu.");
-
-            String respostaPlana = processarResposta(resposta, CHAVE_SECRETA, "DirServer");
-
-            if (respostaPlana.startsWith("OK;")) {
-                return respostaPlana.substring(3); // Retorna o endereço (ex: "localhost:9001")
+            String plainResponse = processSecureResponse(response, SHARED_SECRET_KEY, "DirServer");
+            if (plainResponse.startsWith("OK;")) {
+                return plainResponse.substring(3); // Retorna o endereço (ex: "localhost:9001")
             } else {
-                throw new RuntimeException(respostaPlana); // Ex: "ERROR;Serviço não encontrado"
+                throw new RuntimeException(plainResponse); // Ex: "ERROR;Serviço não encontrado"
             }
         }
     }
 
-    /**
-     * Conecta-se ao CalculatorServer (no endereço descoberto) e executa o cálculo.
-     */
-    private static String executarCalculo(String endereco, String comando) throws Exception {
-        String[] partesEndereco = endereco.split(":");
-        String host = partesEndereco[0];
-        int porta = Integer.parseInt(partesEndereco[1]);
+    private static String executeCalculation(String address, String command) throws Exception {
+        String[] addressParts = address.split(":");
+        String host = addressParts[0];
+        int port = Integer.parseInt(addressParts[1]);
 
         try (
-                Socket socket = new Socket(host, porta);
+                Socket socket = new Socket(host, port);
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
         ) {
-            // Envia comando seguro
-            enviarMensagemSegura(out, comando, CHAVE_SECRETA);
+            sendSecureMessage(out, command, SHARED_SECRET_KEY);
 
-            // Ouve a resposta
-            String resposta = in.readLine();
-            if (resposta == null) throw new RuntimeException("Servidor de cálculo não respondeu.");
+            String response = in.readLine();
+            if (response == null) throw new RuntimeException("Servidor de cálculo não respondeu.");
 
-            String respostaPlana = processarResposta(resposta, CHAVE_SECRETA, "CalcServer");
-
-            if (respostaPlana.startsWith("OK;")) {
-                return respostaPlana.substring(3); // Retorna o resultado
+            String plainResponse = processSecureResponse(response, SHARED_SECRET_KEY, "CalcServer");
+            if (plainResponse.startsWith("OK;")) {
+                return plainResponse.substring(3); // Retorna o resultado
             } else {
-                return respostaPlana; // Retorna a mensagem de erro
+                return plainResponse; // Retorna a mensagem de erro
             }
         }
     }
 
     // --- Métodos utilitários de segurança ---
-
-    private static void enviarMensagemSegura(PrintWriter out, String mensagemPlana, byte[] chave) throws Exception {
-        byte[] dadosCifrados = SecurityUtils.cifrar(chave,
-                mensagemPlana.getBytes(StandardCharsets.UTF_8));
-        byte[] hmac = SecurityUtils.calcularHmac(chave, dadosCifrados);
-        String hmacHex = ConverterUtils.bytes2Hex(hmac);
-        String cifraHex = ConverterUtils.bytes2Hex(dadosCifrados);
-        out.println(hmacHex + "::" + cifraHex);
+    private static void sendSecureMessage(PrintWriter out, String plainMessage, byte[] key) throws Exception {
+        byte[] data = plainMessage.getBytes(StandardCharsets.UTF_8);
+        byte[] encryptedData = SecurityUtils.encrypt(key, data);
+        byte[] hmac = SecurityUtils.calculateHmac(key, encryptedData);
+        out.println(ConverterUtils.bytes2Hex(hmac) + "::" + ConverterUtils.bytes2Hex(encryptedData));
     }
 
-    private static String processarResposta(String linhaRecebida, byte[] chave, String nomeServidor) throws Exception {
+    private static String processSecureResponse(String receivedLine, byte[] key, String serverName) throws Exception {
         try {
-            String[] partes = linhaRecebida.split("::");
-            if (partes.length != 2) throw new SecurityException("Formato de resposta inválido.");
+            String[] parts = receivedLine.split("::");
+            if (parts.length != 2) throw new SecurityException("Formato de resposta inválido.");
+            byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
+            byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
 
-            byte[] hmacRecebido = ConverterUtils.hex2Bytes(partes[0]);
-            byte[] dadosCifrados = ConverterUtils.hex2Bytes(partes[1]);
-
-            boolean hmacValido = SecurityUtils.checarHmac(chave, dadosCifrados, hmacRecebido);
-            if (!hmacValido) throw new SecurityException("HMAC da resposta inválido (chave errada?).");
-
-            byte[] dadosDecifrados = SecurityUtils.decifrar(chave, dadosCifrados);
-            return new String(dadosDecifrados, StandardCharsets.UTF_8);
-
+            if (!SecurityUtils.checkHmac(key, encryptedData, receivedHmac)) {
+                throw new SecurityException("HMAC da resposta inválido (chave errada?).");
+            }
+            byte[] decryptedData = SecurityUtils.decrypt(key, encryptedData);
+            return new String(decryptedData, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            System.err.println("[" + nomeServidor + " Resposta] Erro ao processar resposta: " + e.getMessage());
+            System.err.println("[" + serverName + " Resposta] Erro ao processar resposta: " + e.getMessage());
             throw e;
         }
     }

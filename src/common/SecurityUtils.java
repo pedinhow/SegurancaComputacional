@@ -3,69 +3,59 @@ package common;
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
  * Classe utilitária para funções de segurança (HMAC, Cifragem).
- * Baseado em pratica-6.4-crc-sha-hmac.pdf [cite: 491-493, 524-545]
- * e requisitos da pratica-offline-1 [cite: 126-127].
+ *
  */
 public class SecurityUtils {
 
-    private static final String ALGORITMO_HMAC = "HmacSHA256";
-    private static final String ALGORITMO_CIFRA = "AES";
+    private static final String HMAC_ALGORITHM = "HmacSHA256";
+    private static final String CIPHER_ALGORITHM = "AES";
 
     /**
-     * Calcula o HMAC-SHA256 de uma mensagem usando uma chave secreta.
-     * Baseado no método calcularHmacSha256 de pratica-6.4 [cite: 524-535].
+     * [cite_start]Calcula o HMAC-SHA256. [cite: 239, 262, 288]
      */
-    public static byte[] calcularHmac(byte[] chave, byte[] mensagem) throws Exception {
-        Mac mac = Mac.getInstance(ALGORITMO_HMAC);
-        SecretKeySpec keySpec = new SecretKeySpec(chave, ALGORITMO_HMAC);
+    public static byte[] calculateHmac(byte[] key, byte[] message) throws Exception {
+        Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+        SecretKeySpec keySpec = new SecretKeySpec(key, HMAC_ALGORITHM);
         mac.init(keySpec);
-        return mac.doFinal(mensagem);
+        return mac.doFinal(message);
     }
 
     /**
-     * Verifica um HMAC de forma segura (tempo constante) para evitar timing attacks.
-     * Baseado no método checarHmac de pratica-6.4 [cite: 537-545].
+     * Verifica um HMAC de forma segura (tempo constante).
      */
-    public static boolean checarHmac(byte[] chave, byte[] mensagem, byte[] hmacRecebido) throws Exception {
-        byte[] hmacCalculado = calcularHmac(chave, mensagem);
-
+    public static boolean checkHmac(byte[] key, byte[] message, byte[] receivedHmac) throws Exception {
+        byte[] calculatedHmac = calculateHmac(key, message);
         // Comparação segura em tempo constante
-        return MessageDigest.isEqual(hmacCalculado, hmacRecebido);
+        return MessageDigest.isEqual(calculatedHmac, receivedHmac);
     }
 
     /**
-     * Cifra uma mensagem (bytes) usando AES com a chave fornecida.
-     * (Implementação básica para cumprir o requisito de confidencialidade ).
+     * [cite_start]Cifra uma mensagem (bytes) usando AES. [cite: 238, 261, 287]
      */
-    public static byte[] cifrar(byte[] chave, byte[] dados) throws Exception {
-        // Nota: Para AES, a chave deve ter tamanho específico (16, 24 ou 32 bytes).
-        // Esta implementação básica assume que a chaveHMAC será usada e "cortada" para 16 bytes.
-        // Em um sistema real, chaves de cifra e de MAC devem ser diferentes e gerenciadas.
-        byte[] chaveAes = new byte[16];
-        System.arraycopy(chave, 0, chaveAes, 0, Math.min(chave.length, 16));
+    public static byte[] encrypt(byte[] key, byte[] data) throws Exception {
+        byte[] aesKey = new byte[16];
+        System.arraycopy(key, 0, aesKey, 0, Math.min(key.length, 16));
 
-        SecretKeySpec secretKey = new SecretKeySpec(chaveAes, ALGORITMO_CIFRA);
-        Cipher cipher = Cipher.getInstance(ALGORITMO_CIFRA);
+        SecretKeySpec secretKey = new SecretKeySpec(aesKey, CIPHER_ALGORITHM);
+        Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
         cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-        return cipher.doFinal(dados);
+        return cipher.doFinal(data);
     }
 
     /**
-     * Decifra uma mensagem (bytes) usando AES com a chave fornecida.
-     * (Implementação básica para cumprir o requisito de confidencialidade ).
+     * [cite_start]Decifra uma mensagem (bytes) usando AES. [cite: 238, 261, 287]
      */
-    public static byte[] decifrar(byte[] chave, byte[] dadosCifrados) throws Exception {
-        byte[] chaveAes = new byte[16];
-        System.arraycopy(chave, 0, chaveAes, 0, Math.min(chave.length, 16));
+    public static byte[] decrypt(byte[] key, byte[] encryptedData) throws Exception {
+        byte[] aesKey = new byte[16];
+        System.arraycopy(key, 0, aesKey, 0, Math.min(key.length, 16));
 
-        SecretKeySpec secretKey = new SecretKeySpec(chaveAes, ALGORITMO_CIFRA);
-        Cipher cipher = Cipher.getInstance(ALGORITMO_CIFRA);
+        SecretKeySpec secretKey = new SecretKeySpec(aesKey, CIPHER_ALGORITHM);
+        Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
         cipher.init(Cipher.DECRYPT_MODE, secretKey);
-        return cipher.doFinal(dadosCifrados);
+        return cipher.doFinal(encryptedData);
     }
 }

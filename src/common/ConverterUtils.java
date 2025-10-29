@@ -1,24 +1,14 @@
 package common;
 
-import java.nio.charset.StandardCharsets;
-
 /**
- * Classe utilitária para conversões.
- * Baseado nos exemplos das práticas (ex: pratica-6.0, 6.1, 6.3, 6.4).
+ * Classe utilitária para conversões Hexadecimais.
+ *
  */
 public class ConverterUtils {
 
-    /**
-     * Converte um array de bytes para sua representação em string hexadecimal.
-     * Garante que cada byte seja formatado com dois dígitos hex (ex: 0A, FF).
-     * * Baseado no método byte2hex de pratica-6.0 [cite: 8-13]
-     * e bytes2Hex de pratica-6.4 [cite: 497-505].
-     */
     public static String bytes2Hex(byte[] bytes) {
         StringBuilder sb = new StringBuilder(bytes.length * 2);
         for (byte b : bytes) {
-            // Usa-se & 0xFF para garantir que o byte seja tratado como unsigned
-            // e o formato %02x garante os dois dígitos.
             sb.append(String.format("%02x", b & 0xFF));
         }
         return sb.toString();

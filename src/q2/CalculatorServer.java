@@ -10,22 +10,16 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Servidor de Calculadora (Questão 2).
- * - Oferece serviços de cálculo (SOMA, SUBTRACAO, etc.)[cite: 738, 739].
- * - Ao iniciar, registra seus serviços no DirectoryServer[cite: 741].
- * - Aguarda conexões de clientes para realizar os cálculos.
- */
 public class CalculatorServer {
 
     private static final String DIR_HOST = "localhost";
-    private static final int DIR_PORTA = 12346;
-    private final int minhaPorta;
-    private final String meuEndereco;
+    private static final int DIR_PORT = 12346;
+    private final int port;
+    private final String myAddress;
 
-    public CalculatorServer(int minhaPorta) {
-        this.minhaPorta = minhaPorta;
-        this.meuEndereco = "localhost:" + minhaPorta;
+    public CalculatorServer(int port) {
+        this.port = port;
+        this.myAddress = "localhost:" + port;
     }
 
     public static void main(String[] args) {
@@ -33,100 +27,79 @@ public class CalculatorServer {
             System.err.println("Uso: java q2.CalculatorServer <porta>");
             System.exit(1);
         }
-
         try {
-            int porta = Integer.parseInt(args[0]);
-            CalculatorServer calcServer = new CalculatorServer(porta);
-
-            // 1. Registra-se no Servidor de Diretório
-            calcServer.registrarServicos();
-
-            // 2. Inicia o próprio serviço de calculadora
-            calcServer.iniciarServicoCalculo();
-
+            int port = Integer.parseInt(args[0]);
+            CalculatorServer calcServer = new CalculatorServer(port);
+            calcServer.registerServices();
+            calcServer.startService();
         } catch (NumberFormatException e) {
             System.err.println("Porta inválida: " + args[0]);
         }
     }
 
-    /**
-     * Conecta-se ao DirectoryServer e registra os serviços que este servidor oferece.
-     */
-    private void registrarServicos() {
-        // Serviços que este servidor oferece [cite: 738]
-        String[] servicos = {"SOMA", "SUBTRACAO", "MULTIPLICACAO", "DIVISAO"};
+    private void registerServices() {
+        // Serviços que este servidor oferece [cite: 246]
+        String[] services = {"SOMA", "SUBTRACAO", "MULTIPLICACAO", "DIVISAO"};
+        System.out.println("[CalcServer-" + port + "] Registrando serviços no Diretório...");
 
-        System.out.println("[CalcServer-" + minhaPorta + "] Registrando serviços no Diretório...");
-
-        for (String servico : servicos) {
+        for (String service : services) {
             try (
-                    Socket socket = new Socket(DIR_HOST, DIR_PORTA);
+                    Socket socket = new Socket(DIR_HOST, DIR_PORT);
                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
             ) {
-                String comando = "REGISTER " + servico + " " + meuEndereco;
+                String command = "REGISTER " + service + " " + myAddress;
+                sendSecureMessage(out, command, DirectoryServer.SHARED_SECRET_KEY);
 
-                // Envia comando seguro
-                enviarMensagemSegura(out, comando, DirectoryServer.CHAVE_SECRETA);
-
-                // Ouve a resposta (opcional, mas bom para log)
-                String resposta = in.readLine();
-                if (resposta != null) {
-                    processarResposta(resposta, DirectoryServer.CHAVE_SECRETA, "DirServer");
+                String response = in.readLine(); // Opcional, apenas para log
+                if (response != null) {
+                    processSecureResponse(response, DirectoryServer.SHARED_SECRET_KEY, "DirServer");
                 }
-
             } catch (Exception e) {
-                System.err.println("[CalcServer-" + minhaPorta + "] Erro ao registrar " + servico + ": " + e.getMessage());
+                System.err.println("[CalcServer-" + port + "] Erro ao registrar " + service + ": " + e.getMessage());
             }
         }
-        System.out.println("[CalcServer-" + minhaPorta + "] Registro concluído.");
+        System.out.println("[CalcServer-" + port + "] Registro concluído.");
     }
 
-    /**
-     * Inicia o ServerSocket para atender clientes de cálculo.
-     */
-    private void iniciarServicoCalculo() {
-        System.out.println("[CalcServer-" + minhaPorta + "] Aguardando clientes de cálculo na porta " + minhaPorta);
-        try (ServerSocket serverSocket = new ServerSocket(minhaPorta)) {
+    private void startService() {
+        System.out.println("[CalcServer-" + port + "] Aguardando clientes de cálculo na porta " + port);
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("[CalcServer-" + minhaPorta + "] Cliente de cálculo conectado: " + clientSocket.getInetAddress());
+                System.out.println("[CalcServer-" + port + "] Cliente de cálculo conectado: " + clientSocket.getInetAddress());
 
                 // Cria uma nova thread para o cálculo
-                Thread clientThread = new Thread(
-                        new CalculationHandler(clientSocket)
+                CalculationHandler handler = new CalculationHandler(
+                        clientSocket,
+                        DirectoryServer.SHARED_SECRET_KEY
                 );
+                Thread clientThread = new Thread(handler);
                 clientThread.start();
             }
         } catch (Exception e) {
-            System.err.println("[CalcServer-" + minhaPorta + "] Erro no serviço de cálculo: " + e.getMessage());
+            System.err.println("[CalcServer-" + port + "] Erro no serviço de cálculo: " + e.getMessage());
         }
     }
 
-    // Métodos utilitários (enviarMensagemSegura, processarResposta)
-    // (Similares aos dos outros clientes)
-
-    private void enviarMensagemSegura(PrintWriter out, String mensagemPlana, byte[] chave) throws Exception {
-        byte[] dadosCifrados = SecurityUtils.cifrar(chave,
-                mensagemPlana.getBytes(StandardCharsets.UTF_8));
-        byte[] hmac = SecurityUtils.calcularHmac(chave, dadosCifrados);
-        String hmacHex = ConverterUtils.bytes2Hex(hmac);
-        String cifraHex = ConverterUtils.bytes2Hex(dadosCifrados);
-        out.println(hmacHex + "::" + cifraHex);
+    // --- Métodos utilitários de segurança ---
+    private void sendSecureMessage(PrintWriter out, String plainMessage, byte[] key) throws Exception {
+        byte[] data = plainMessage.getBytes(StandardCharsets.UTF_8);
+        byte[] encryptedData = SecurityUtils.encrypt(key, data);
+        byte[] hmac = SecurityUtils.calculateHmac(key, encryptedData);
+        out.println(ConverterUtils.bytes2Hex(hmac) + "::" + ConverterUtils.bytes2Hex(encryptedData));
     }
 
-    private void processarResposta(String linhaRecebida, byte[] chave, String nomeServidor) {
+    private void processSecureResponse(String receivedLine, byte[] key, String serverName) {
         try {
-            String[] partes = linhaRecebida.split("::");
-            if (partes.length != 2) return;
-            byte[] hmacRecebido = ConverterUtils.hex2Bytes(partes[0]);
-            byte[] dadosCifrados = ConverterUtils.hex2Bytes(partes[1]);
-            boolean hmacValido = SecurityUtils.checarHmac(chave, dadosCifrados, hmacRecebido);
-            if (!hmacValido) return;
-            byte[] dadosDecifrados = SecurityUtils.decifrar(chave, dadosCifrados);
-            String mensagem = new String(dadosDecifrados, StandardCharsets.UTF_8);
-            System.out.println("[" + nomeServidor + " Resposta] " + mensagem);
+            String[] parts = receivedLine.split("::");
+            if (parts.length != 2) return;
+            byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
+            byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
+            if (!SecurityUtils.checkHmac(key, encryptedData, receivedHmac)) return;
+            byte[] decryptedData = SecurityUtils.decrypt(key, encryptedData);
+            String message = new String(decryptedData, StandardCharsets.UTF_8);
+            System.out.println("[" + serverName + " Resposta] " + message);
         } catch (Exception e) { /* ignora */ }
     }
 }
-

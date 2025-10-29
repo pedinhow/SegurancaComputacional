@@ -10,32 +10,24 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Representa um único Processo (Nó) na topologia em Anel (Questão 3).
- * - Cada nó ouve em sua própria porta (Servidor).
- * - Cada nó conhece seu sucessor (Cliente).
- * - Encaminha buscas até encontrar o nó responsável.
- * - Implementa segurança (Cifra + HMAC) [cite: 738-740].
- * - Registra logs de mensagens.
- */
 public class RingNode {
 
-    private final String myId;        // ex: "P0"
-    private final int myPort;
+    private final String nodeId; // ex: "P0"
+    private final int port;
     private final String successorHost = "localhost";
     private final int successorPort;
 
-    // Chave secreta COMPARTILHADA (todos os nós devem ter a mesma)
-    //public static final byte[] CHAVE_SECRETA =
-            // "chave-secreta-do-anel-p2p".getBytes(StandardCharsets.UTF_8);
+    // Chave secreta COMPARTILHADA [cite: 286]
+    public static final byte[] SHARED_SECRET_KEY =
+            "chave-secreta-do-anel-p2p".getBytes(StandardCharsets.UTF_8);
 
-    // Para testar a falha de segurança (Nó P7 ou chave errada)
-    public static final byte[] CHAVE_SECRETA =
-        "chave-errada-do-intruso".getBytes(StandardCharsets.UTF_8);
+    // Para testar a falha de segurança (Nó P7 ou chave errada) [cite: 290-292]
+    // public static final byte[] SHARED_SECRET_KEY =
+    //    "chave-errada-do-intruso".getBytes(StandardCharsets.UTF_8);
 
-    public RingNode(String myId, int myPort, int successorPort) {
-        this.myId = myId;
-        this.myPort = myPort;
+    public RingNode(String nodeId, int port, int successorPort) {
+        this.nodeId = nodeId;
+        this.port = port;
         this.successorPort = successorPort;
     }
 
@@ -46,79 +38,56 @@ public class RingNode {
             System.err.println("Exemplo (P5): java q3.RingNode P5 9005 9000 (fecha o anel)");
             System.exit(1);
         }
-
         try {
             String id = args[0];
-            int porta = Integer.parseInt(args[1]);
-            int portaSucessor = Integer.parseInt(args[2]);
-
-            RingNode node = new RingNode(id, porta, portaSucessor);
-            node.iniciar();
-
+            int port = Integer.parseInt(args[1]);
+            int successorPort = Integer.parseInt(args[2]);
+            new RingNode(id, port, successorPort).start();
         } catch (Exception e) {
             System.err.println("Erro ao iniciar nó: " + e.getMessage());
         }
     }
 
-    /**
-     * Inicia as duas threads principais:
-     * 1. O servidor (para ouvir outros nós).
-     * 2. O console (para ouvir o usuário).
-     */
-    public void iniciar() {
-        log("Nó " + myId + " iniciado. Ouvindo na porta " + myPort + ". Sucessor na porta " + successorPort);
-
-        // 1. Inicia o servidor em uma nova thread
-        Thread serverThread = new Thread(this::iniciarServidor);
-        serverThread.start();
-
-        // 2. Inicia o listener do console na thread principal
-        iniciarConsole();
+    public void start() {
+        log("Nó " + nodeId + " (Seguro) iniciado. Ouvindo na porta " + port + ". Sucessor na porta " + successorPort);
+        new Thread(this::startServer).start(); // Inicia o servidor (ouvinte)
+        startConsole(); // Inicia o console (cliente)
     }
 
-    /**
-     * Ouve o console para comandos do usuário (ex: BUSCAR arquivoX).
-     */
-    private void iniciarConsole() {
+    private void startConsole() {
         try (BufferedReader consoleIn = new BufferedReader(new InputStreamReader(System.in))) {
-            System.out.println("Comandos: BUSCAR <arquivo> (ex: BUSCAR arquivo25) | SAIR");
-            System.out.print(myId + "> ");
-
+            System.out.println("Comandos: SEARCH <arquivo> (ex: SEARCH arquivo25) | SAIR");
+            System.out.print(nodeId + "> ");
             String userInput;
             while ((userInput = consoleIn.readLine()) != null) {
                 if ("SAIR".equalsIgnoreCase(userInput)) break;
 
-                if (userInput.toUpperCase().startsWith("BUSCAR ")) {
-                    String[] partes = userInput.split(" ");
-                    if (partes.length == 2) {
-                        String arquivo = partes[1]; // ex: "arquivo25"
-                        // Cria a mensagem de busca
-                        String payload = "SEARCH;" + myId + ";" + arquivo;
-                        // Processa a mensagem (verifica se é dele ou encaminha)
-                        processarMensagem(payload);
+                if (userInput.toUpperCase().startsWith("SEARCH ")) {
+                    String[] parts = userInput.split(" ");
+                    if (parts.length == 2) {
+                        String file = parts[1];
+                        // Formato: "SEARCH;ARQUIVO;ID_ORIGEM;PORTA_ORIGEM"
+                        // A porta de origem é usada para rotear a resposta "FOUND"
+                        String payload = "SEARCH;" + file + ";" + this.nodeId + ";" + this.port;
+                        processMessage(payload);
                     } else {
-                        log("Formato inválido.");
+                        log("Formato inválido.");// [cite: 284]
                     }
                 } else {
                     log("Comando desconhecido.");
                 }
-                System.out.print(myId + "> ");
+                System.out.print(nodeId + "> ");
             }
         } catch (Exception e) {
             log("Erro no console: " + e.getMessage());
         }
     }
 
-    /**
-     * Inicia o ServerSocket e aguarda conexões de outros nós.
-     */
-    private void iniciarServidor() {
-        try (ServerSocket serverSocket = new ServerSocket(myPort)) {
+    private void startServer() {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                // Cada conexão é tratada em uma nova thread
-                Thread clientThread = new Thread(new NodeHandler(clientSocket, this));
-                clientThread.start();
+                new Thread(new NodeHandler(clientSocket, this)).start();
             }
         } catch (Exception e) {
             log("ERRO no Servidor: " + e.getMessage());
@@ -129,25 +98,27 @@ public class RingNode {
      * Lógica principal: processa uma mensagem de busca.
      * Verifica se o arquivo pertence a este nó ou se deve ser encaminhado.
      */
-    public void processarMensagem(String payload) {
+    public void processMessage(String payload) {
         try {
-            String[] partes = payload.split(";");
-            if (partes.length < 3 || !partes[0].equals("SEARCH")) {
+            String[] parts = payload.split(";");
+            if (parts.length < 4 || !parts[0].equals("SEARCH")) {
                 log("Mensagem mal formatada recebida: " + payload);
                 return;
             }
+            String file = parts[1];
+            String originId = parts[2];
+            int originPort = Integer.parseInt(parts[3]);
 
-            String origemId = partes[1];
-            String arquivo = partes[2];
-
-            if (isResponsavel(arquivo)) {
-                // Se é responsável, a busca termina aqui.
-                log("ARQUIVO ENCONTRADO! '" + arquivo + "' está neste nó (" + myId + ").");
-                log("(Busca originada por: " + origemId + ")");
+            if (isResponsible(file)) {
+                log("ARQUIVO ENCONTRADO! '" + file + "' está neste nó (" + nodeId + ").");
+                log("(Busca originada por: " + originId + ")");
+                // Envia a resposta de volta para a ORIGEM
+                String response = "FOUND;" + file + ";" + this.nodeId;
+                sendSecureMessage(originPort, response);
             } else {
                 // Se não é, encaminha para o sucessor
-                log("Arquivo '" + arquivo + "' não está aqui. Encaminhando para " + successorPort + "...");
-                encaminharMensagem(payload);
+                log("Arquivo '" + file + "' não está aqui. Encaminhando para " + successorPort + "...");
+                sendSecureMessage(successorPort, payload); // Encaminha a mensagem original
             }
         } catch (Exception e) {
             log("Erro ao processar mensagem: " + e.getMessage());
@@ -155,62 +126,43 @@ public class RingNode {
     }
 
     /**
-     * Encaminha a mensagem (payload) para o nó sucessor.
-     * Age como um cliente.
+     * Encaminha a mensagem (payload) para um nó de forma segura.
      */
-    private void encaminharMensagem(String payloadPlano) {
-        // Envia de forma segura (Cifra + HMAC)
+    public void sendSecureMessage(int destinationPort, String plainPayload) {
+        log("Enviando (seguro): " + plainPayload + " para " + destinationPort);
         try (
-                Socket socket = new Socket(successorHost, successorPort);
+                Socket socket = new Socket(successorHost, destinationPort);
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)
         ) {
-            log("Enviando (seguro): " + payloadPlano + " para " + successorPort);
+            byte[] data = plainPayload.getBytes(StandardCharsets.UTF_8);
+            byte[] encryptedData = SecurityUtils.encrypt(SHARED_SECRET_KEY, data);// [cite: 287]
+            byte[] hmac = SecurityUtils.calculateHmac(SHARED_SECRET_KEY, encryptedData);// [cite: 288]
 
-            // 1. Cifrar
-            byte[] dadosCifrados = SecurityUtils.cifrar(CHAVE_SECRETA,
-                    payloadPlano.getBytes(StandardCharsets.UTF_8));
-
-            // 2. Calcular HMAC
-            byte[] hmac = SecurityUtils.calcularHmac(CHAVE_SECRETA, dadosCifrados);
-
-            // 3. Enviar
             String hmacHex = ConverterUtils.bytes2Hex(hmac);
-            String cifraHex = ConverterUtils.bytes2Hex(dadosCifrados);
-            out.println(hmacHex + "::" + cifraHex);
+            String encryptedHex = ConverterUtils.bytes2Hex(encryptedData);
+            out.println(hmacHex + "::" + encryptedHex);
 
         } catch (Exception e) {
-            log("ERRO ao encaminhar para " + successorPort + ": " + e.getMessage());
+            log("ERRO ao encaminhar para " + destinationPort + ": " + e.getMessage());
         }
     }
 
-    /**
-     * Verifica se o arquivo (ex: "arquivo25") pertence a este nó.
-     * [cite: 725-730]
-     */
-    private boolean isResponsavel(String arquivo) {
+    private boolean isResponsible(String file) {
         try {
-            // Remove "P" do ID (ex: "P0" -> 0)
-            int idNum = Integer.parseInt(myId.replace("P", ""));
-            // Remove "arquivo" do nome (ex: "arquivo25" -> 25)
-            int fileNum = Integer.parseInt(arquivo.replaceAll("(?i)arquivo", ""));
-
-            // Define o intervalo de responsabilidade [cite: 725-730]
+            int idNum = Integer.parseInt(nodeId.replace("P", ""));
+            int fileNum = Integer.parseInt(file.replaceAll("(?i)arquivo", ""));
+            // Define o intervalo de responsabilidade [cite: 273-278]
             int min = (idNum * 10) + 1;
             int max = (idNum * 10) + 10;
-
             return (fileNum >= min && fileNum <= max);
-
         } catch (NumberFormatException e) {
-            log("Formato de arquivo ou ID inválido: " + arquivo + " / " + myId);
+            log("Formato de arquivo ou ID inválido: " + file + " / " + nodeId);
             return false;
         }
     }
 
-    /**
-     * Helper para imprimir logs com o ID do nó.
-     */
-    public void log(String mensagem) {
-        System.out.println("[" + myId + " | " + java.time.LocalTime.now() + "] " + mensagem);
+    public void log(String message) {
+        // [cite: 285]
+        System.out.println("[" + nodeId + " | " + java.time.LocalTime.now() + "] " + message);
     }
 }
-
