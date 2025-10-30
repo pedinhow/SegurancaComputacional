@@ -25,7 +25,7 @@ public class MiniDNSServer {
     }
 
     private void initializeDnsMap() {
-        // Popula o mapa inicial [cite: 230-231]
+        // popula o mapa inicial
         dnsMap.put("servidor1", "192.168.0.10");
         dnsMap.put("servidor2", "192.168.0.20");
         dnsMap.put("servidor3", "192.168.0.30");
@@ -45,7 +45,7 @@ public class MiniDNSServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("[Servidor] Novo cliente conectado: " + clientSocket.getInetAddress());
 
-                // Cria uma nova thread para lidar com o cliente
+                // cria uma nova thread para lidar com o cliente
                 ClientHandler handler = new ClientHandler(
                         clientSocket,
                         dnsMap,
