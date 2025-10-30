@@ -38,7 +38,7 @@ public class ClientHandler implements Runnable {
             while ((receivedLine = inputReader.readLine()) != null) {
                 System.out.println("\n[Handler] Mensagem recebida (bruta): " + receivedLine);
                 try {
-                    // 1. Decodificar a mensagem (formato: hmacHex::cifraHex)
+                    // decodificar a mensagem (formato: hmacHex::cifraHex)
                     String[] parts = receivedLine.split("::");
                     if (parts.length != 2) {
                         System.err.println("[Handler] ERRO: Formato da mensagem inválido. Descartando.");
@@ -47,7 +47,7 @@ public class ClientHandler implements Runnable {
                     byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
                     byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
 
-                    // 2. Verificar HMAC [cite: 239, 243, 245]
+                    // verificar HMAC
                     boolean isHmacValid = SecurityUtils.checkHmac(this.sharedKey, encryptedData, receivedHmac);
                     if (!isHmacValid) {
                         System.err.println("[Handler] FALHA DE SEGURANÇA: HMAC inválido. Mensagem descartada.");
@@ -55,15 +55,15 @@ public class ClientHandler implements Runnable {
                     }
                     System.out.println("[Handler] HMAC verificado com sucesso.");
 
-                    // 3. Decifrar [cite: 238]
+                    // decifrar
                     byte[] decryptedData = SecurityUtils.decrypt(this.sharedKey, encryptedData);
                     String command = new String(decryptedData, StandardCharsets.UTF_8);
                     System.out.println("[Handler] Comando decifrado: " + command);
 
-                    // 4. Processar o comando
+                    // processar o comando
                     String response = processCommand(command);
 
-                    // 5. Enviar resposta segura
+                    // enviar resposta segura
                     sendSecureMessage(response);
 
                 } catch (Exception e) {
@@ -71,7 +71,6 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            // Silencioso
         } finally {
             if (outputWriter != null) {
                 subscribers.remove(outputWriter);
@@ -88,25 +87,24 @@ public class ClientHandler implements Runnable {
         String operation = parts[0].toUpperCase();
 
         switch (operation) {
-            case "REGISTER_QUERY": // Cliente requisitante se registra [cite: 233]
+            case "REGISTER_QUERY": // cliente requisitante se registra
                 if (!subscribers.contains(this.outputWriter)) {
                     subscribers.add(this.outputWriter);
                     System.out.println("[Handler] Cliente requisitante registrado para atualizações.");
                 }
                 return "OK;Registrado para atualizações.";
 
-            case "RESOLVE": // Cliente requisitante consulta [cite: 232]
+            case "RESOLVE": // cliente requisitante consulta
                 if (parts.length < 2) return "ERROR;Formato inválido. Use: RESOLVE <nome>";
                 String name = parts[1];
                 String ip = dnsMap.get(name);
                 return (ip != null) ? "OK;" + name + " -> " + ip : "ERROR;Nome não encontrado: " + name;
 
-            case "UPDATE": // Cliente registrador atualiza [cite: 234]
+            case "UPDATE": // cliente registrador atualiza
                 if (parts.length < 3) return "ERROR;Formato inválido. Use: UPDATE <nome> <novo_ip>";
                 String nameToUpdate = parts[1];
                 String newIp = parts[2];
 
-                // Requisito: Apenas servidores 1, 4 e 9 [cite: 234]
                 if (!nameToUpdate.equals("servidor1") &&
                         !nameToUpdate.equals("servidor4") &&
                         !nameToUpdate.equals("servidor9")) {
@@ -115,7 +113,7 @@ public class ClientHandler implements Runnable {
 
                 dnsMap.put(nameToUpdate, newIp);
                 System.out.println("[Handler] BINDING DINÂMICO: " + nameToUpdate + " atualizado para " + newIp);
-                notifySubscribers(nameToUpdate, newIp);// [cite: 236]
+                notifySubscribers(nameToUpdate, newIp);
                 return "OK;Atualizado com sucesso: " + nameToUpdate + " -> " + newIp;
 
             default:

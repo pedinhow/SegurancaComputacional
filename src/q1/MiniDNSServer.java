@@ -16,7 +16,7 @@ public class MiniDNSServer {
     private final List<PrintWriter> subscribers =
             java.util.Collections.synchronizedList(new ArrayList<>());
 
-    // Chave secreta COMPARTILHADA
+    // chave secreta
     public static final byte[] SHARED_SECRET_KEY =
             "chave-secreta-super-segura".getBytes(StandardCharsets.UTF_8);
 
