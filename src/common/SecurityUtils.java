@@ -19,7 +19,7 @@ public class SecurityUtils {
 
     public static boolean checkHmac(byte[] key, byte[] message, byte[] receivedHmac) throws Exception {
         byte[] calculatedHmac = calculateHmac(key, message);
-        // Comparação segura em tempo constante
+        // comparação segura em tempo constante
         return MessageDigest.isEqual(calculatedHmac, receivedHmac);
     }
 
