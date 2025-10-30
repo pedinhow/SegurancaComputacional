@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 public class NodeHandler implements Runnable {
 
     private final Socket socket;
-    private final P2PNode node; // Referência de volta ao nó principal
+    private final P2PNode node;
 
     public NodeHandler(Socket socket, P2PNode node) {
         this.socket = socket;
@@ -28,7 +28,6 @@ public class NodeHandler implements Runnable {
 
             node.log("Mensagem recebida (bruta): " + receivedLine);
 
-            // 1. Decodificar
             String[] parts = receivedLine.split("::");
             if (parts.length != 2) {
                 node.log("ERRO: Formato de segurança inválido. Descartando.");
@@ -37,43 +36,27 @@ public class NodeHandler implements Runnable {
             byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
             byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
 
-            // 2. Verificar HMAC [cite: 288, 290]
             boolean isHmacValid = SecurityUtils.checkHmac(P2PNode.SHARED_SECRET_KEY, encryptedData, receivedHmac);
             if (!isHmacValid) {
                 node.log("FALHA DE SEGURANÇA: HMAC inválido (chave errada?). Mensagem descartada.");
-                return; // Requisito: Descartar a mensagem [cite: 291, 293]
+                return;
             }
             node.log("HMAC verificado com sucesso.");
 
-            // 3. Decifrar [cite: 287]
             byte[] decryptedData = SecurityUtils.decrypt(P2PNode.SHARED_SECRET_KEY, encryptedData);
             String payload = new String(decryptedData, StandardCharsets.UTF_8);
             node.log("Mensagem decifrada: " + payload);
 
-            // 4. Processar
-            String[] payloadParts = payload.split(";");
-            if (payloadParts[0].equals("SEARCH")) {
-                node.processMessage(payload); // Deixa o nó principal processar
-            } else if (payloadParts[0].equals("FOUND")) {
-                handleFound(payloadParts);
-            }
+            node.processMessage(payload);
 
         } catch (Exception e) {
             node.log("ERRO no Handler: " + e.getMessage());
         } finally {
             try {
                 socket.close();
-            } catch (Exception e) { /* ignora */ }
+            } catch (Exception e) {
+
+            }
         }
-    }
-
-    private void handleFound(String[] parts) {
-        // Formato: "FOUND;ARQUIVO;ID_ONDE_ACHOU"
-        if (parts.length < 3) return;
-        String file = parts[1];
-        String foundAtNodeId = parts[2];
-
-        node.log("!!! SUCESSO DA BUSCA !!!");
-        node.log("O arquivo '" + file + "' foi localizado no Nó " + foundAtNodeId + ".");
     }
 }

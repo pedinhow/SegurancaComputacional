@@ -1,9 +1,5 @@
 package common;
 
-/**
- * Classe utilitária para conversões Hexadecimais.
- *
- */
 public class ConverterUtils {
 
     public static String bytes2Hex(byte[] bytes) {

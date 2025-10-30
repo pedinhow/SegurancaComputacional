@@ -11,13 +11,13 @@ import java.nio.charset.StandardCharsets;
 
 public class RegistryClient {
 
-    private static final String HOST = "localhost";
+    private static final String HOST = "172.17.232.64";
     private static final int PORT = 12345;
 
-    // Chave secreta COMPARTILHADA
+    // chave secreta
     private static final byte[] SHARED_SECRET_KEY = MiniDNSServer.SHARED_SECRET_KEY;
 
-    // Para testar a falha (descomente a linha abaixo e comente a de cima) [cite: 245]
+    // para testar a falha TODO descomente
     // private static final byte[] SHARED_SECRET_KEY =
     //    "chave-do-atacante".getBytes(StandardCharsets.UTF_8);
 
@@ -25,26 +25,27 @@ public class RegistryClient {
         try (
                 Socket socket = new Socket(HOST, PORT);
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                BufferedReader consoleIn = new BufferedReader(new InputStreamReader(System.in))
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
         ) {
             System.out.println("[Cliente Registrador] Conectado ao servidor.");
-            System.out.println("Comandos disponíveis: UPDATE <nome> <ip> | SAIR");
-            System.out.println("  (Nomes permitidos: servidor1, servidor4, servidor9)");
-            System.out.print("> ");
 
-            String userInput;
-            while ((userInput = consoleIn.readLine()) != null) {
-                if ("SAIR".equalsIgnoreCase(userInput)) break;
+            // envia os 3 updates de uma vez
+            System.out.println("Enviando atualização para servidor1...");
+            sendSecureMessage(out, "UPDATE servidor1 192.168.0.111", SHARED_SECRET_KEY);
+            processSecureResponse(in.readLine(), SHARED_SECRET_KEY);
+            Thread.sleep(1000);
 
-                sendSecureMessage(out, userInput, SHARED_SECRET_KEY);
-                String receivedLine = in.readLine();
-                if (receivedLine != null) {
-                    processSecureResponse(receivedLine, SHARED_SECRET_KEY);
-                }
-                System.out.print("> ");
-            }
-            System.out.println("[Cliente Registrador] Desconectado.");
+            System.out.println("Enviando atualização para servidor4...");
+            sendSecureMessage(out, "UPDATE servidor4 192.168.0.444", SHARED_SECRET_KEY);
+            processSecureResponse(in.readLine(), SHARED_SECRET_KEY);
+            Thread.sleep(1000);
+
+            System.out.println("Enviando atualização para servidor9...");
+            sendSecureMessage(out, "UPDATE servidor9 192.168.0.999", SHARED_SECRET_KEY);
+            processSecureResponse(in.readLine(), SHARED_SECRET_KEY);
+
+            System.out.println("[Cliente Registrador] Atualizações concluídas. Desconectando.");
+
         } catch (Exception e) {
             System.err.println("[Cliente Registrador] Erro: " + e.getMessage());
         }
@@ -59,6 +60,10 @@ public class RegistryClient {
 
     private static void processSecureResponse(String receivedLine, byte[] key) {
         try {
+            if (receivedLine == null) {
+                System.err.println("[Servidor Resposta] Servidor não respondeu.");
+                return;
+            }
             String[] parts = receivedLine.split("::");
             if (parts.length != 2) {
                 System.err.println("[Servidor Resposta] ERRO: Formato inválido.");

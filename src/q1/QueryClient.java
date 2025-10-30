@@ -11,13 +11,13 @@ import java.nio.charset.StandardCharsets;
 
 public class QueryClient {
 
-    private static final String HOST = "localhost";
+    private static final String HOST = "172.17.232.64";
     private static final int PORT = 12345;
 
-    // Chave secreta COMPARTILHADA
+    // chave secreta compartilhada
     private static final byte[] SHARED_SECRET_KEY = MiniDNSServer.SHARED_SECRET_KEY;
 
-    // Para testar a falha (descomente a linha abaixo e comente a de cima) [cite: 242]
+    // para testar a falha TODO descomentar
     // private static final byte[] SHARED_SECRET_KEY =
     //    "chave-errada".getBytes(StandardCharsets.UTF_8);
 
@@ -32,7 +32,6 @@ public class QueryClient {
             Thread listenerThread = new Thread(new ServerListener(in, SHARED_SECRET_KEY));
             listenerThread.start();
 
-            // 2. Registra-se no servidor para receber atualizações
             sendSecureMessage(out, "REGISTER_QUERY", SHARED_SECRET_KEY);
 
             System.out.println("Comandos disponíveis: RESOLVE <nome> | SAIR");
@@ -89,14 +88,25 @@ class ServerListener implements Runnable {
 
                     byte[] decryptedData = SecurityUtils.decrypt(sharedKey, encryptedData);
                     String message = new String(decryptedData, StandardCharsets.UTF_8);
-                    System.out.println("\n[Servidor Resposta] " + message);
+
+                    // imprime a resposta
+                    System.out.println(""); // nova linha para a resposta
+                    if (message.startsWith("OK;")) {
+                        System.out.println("[Servidor Resposta] " + message.substring(3));
+                    } else if (message.startsWith("UPDATED;")) {
+                        // formato: UPDATED;servidor1;192.168.0.111
+                        String[] updateParts = message.split(";");
+                        System.out.println("[PUSH_NOTIFICATION] Binding dinâmico: " + updateParts[1] + " agora é " + updateParts[2]);
+                    } else {
+                        System.out.println("[Servidor Resposta] " + message);
+                    }
                     System.out.print("> ");
+
                 } catch (Exception e) {
                     System.err.println("\n[Servidor Resposta] Erro ao processar mensagem: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
-            // Socket fechado
         }
     }
 }

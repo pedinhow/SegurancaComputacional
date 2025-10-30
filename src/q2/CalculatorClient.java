@@ -12,10 +12,10 @@ import java.util.Scanner;
 
 public class CalculatorClient {
 
-    private static final String DIR_HOST = "localhost";
+    private static final String DIR_HOST = "172.17.232.64";
     private static final int DIR_PORT = 12346;
 
-    // Chave secreta COMPARTILHADA
+    // chave secreta
     private static final byte[] SHARED_SECRET_KEY = DirectoryServer.SHARED_SECRET_KEY;
 
     // Para testar a falha de segurança [cite: 264]
@@ -39,6 +39,7 @@ public class CalculatorClient {
                     System.out.print("> ");
                     continue;
                 }
+                // O serviço é a operação (ex: "SOMA")
                 String service = commandParts[0].toUpperCase();
 
                 try {
@@ -47,6 +48,7 @@ public class CalculatorClient {
                     System.out.println("Serviço '" + service + "' encontrado em: " + serverAddress + " (via Round Robin)");
 
                     // 2. Executar o cálculo
+                    // O comando enviado ao worker é o input inteiro (ex: "SOMA 10 20")
                     String result = executeCalculation(serverAddress, userInput);
                     System.out.println("Resultado: " + result);
 
@@ -75,7 +77,7 @@ public class CalculatorClient {
 
             String plainResponse = processSecureResponse(response, SHARED_SECRET_KEY, "DirServer");
             if (plainResponse.startsWith("OK;")) {
-                return plainResponse.substring(3); // Retorna o endereço (ex: "localhost:9001")
+                return plainResponse.substring(3); // Retorna o endereço (ex: "172.17.232.64:9001")
             } else {
                 throw new RuntimeException(plainResponse); // Ex: "ERROR;Serviço não encontrado"
             }
@@ -92,6 +94,7 @@ public class CalculatorClient {
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
         ) {
+            // Envia o comando de cálculo (ex: "SOMA 10 20")
             sendSecureMessage(out, command, SHARED_SECRET_KEY);
 
             String response = in.readLine();

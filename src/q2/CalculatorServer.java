@@ -12,24 +12,26 @@ import java.nio.charset.StandardCharsets;
 
 public class CalculatorServer {
 
-    private static final String DIR_HOST = "localhost";
+    private static final String DIR_HOST = "172.17.232.64";
     private static final int DIR_PORT = 12346;
     private final int port;
     private final String myAddress;
 
     public CalculatorServer(int port) {
         this.port = port;
-        this.myAddress = "localhost:" + port;
+        String myIp = "172.17.232.64";
+        this.myAddress = myIp + ":" + port;
     }
 
     public static void main(String[] args) {
         if (args.length < 1) {
-            System.err.println("Uso: java q2.CalculatorServer <porta>");
+            System.err.println("Uso: java q2.CalculatorServer <minha_porta>");
+            System.err.println("Exemplo: java q2.CalculatorServer 9001");
             System.exit(1);
         }
         try {
             int port = Integer.parseInt(args[0]);
-            CalculatorServer calcServer = new CalculatorServer(port);
+            CalculatorServer calcServer = new CalculatorServer(port); // <-- ATUALIZADO
             calcServer.registerServices();
             calcServer.startService();
         } catch (NumberFormatException e) {
@@ -38,7 +40,6 @@ public class CalculatorServer {
     }
 
     private void registerServices() {
-        // Serviços que este servidor oferece [cite: 246]
         String[] services = {"SOMA", "SUBTRACAO", "MULTIPLICACAO", "DIVISAO"};
         System.out.println("[CalcServer-" + port + "] Registrando serviços no Diretório...");
 
@@ -51,7 +52,7 @@ public class CalculatorServer {
                 String command = "REGISTER " + service + " " + myAddress;
                 sendSecureMessage(out, command, DirectoryServer.SHARED_SECRET_KEY);
 
-                String response = in.readLine(); // Opcional, apenas para log
+                String response = in.readLine();
                 if (response != null) {
                     processSecureResponse(response, DirectoryServer.SHARED_SECRET_KEY, "DirServer");
                 }
@@ -100,6 +101,8 @@ public class CalculatorServer {
             byte[] decryptedData = SecurityUtils.decrypt(key, encryptedData);
             String message = new String(decryptedData, StandardCharsets.UTF_8);
             System.out.println("[" + serverName + " Resposta] " + message);
-        } catch (Exception e) { /* ignora */ }
+        } catch (Exception e) {
+
+        }
     }
 }
