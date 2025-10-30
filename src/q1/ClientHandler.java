@@ -51,7 +51,7 @@ public class ClientHandler implements Runnable {
                     boolean isHmacValid = SecurityUtils.checkHmac(this.sharedKey, encryptedData, receivedHmac);
                     if (!isHmacValid) {
                         System.err.println("[Handler] FALHA DE SEGURANÇA: HMAC inválido. Mensagem descartada.");
-                        continue; // Requisito: O servidor deve descartar a mensagem
+                        continue; // requisito o servidor deve descartar a mensagem
                     }
                     System.out.println("[Handler] HMAC verificado com sucesso.");
 
@@ -78,7 +78,9 @@ public class ClientHandler implements Runnable {
             }
             try {
                 socket.close();
-            } catch (Exception e) { /* ignora */ }
+            } catch (Exception e) {
+
+            }
         }
     }
 
