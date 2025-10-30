@@ -24,7 +24,7 @@ public class DirectoryServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("[DirServer] Novo cliente conectado: " + clientSocket.getInetAddress());
 
-                // Cria uma nova thread para lidar com o cliente
+                // cria uma nova thread para lidar com o cliente
                 DirectoryHandler handler = new DirectoryHandler(
                         clientSocket,
                         serviceMap,

@@ -70,7 +70,7 @@ public class CalculatorServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("[CalcServer-" + port + "] Cliente de cálculo conectado: " + clientSocket.getInetAddress());
 
-                // Cria uma nova thread para o cálculo
+                // cria uma nova thread para o cálculo
                 CalculationHandler handler = new CalculationHandler(
                         clientSocket,
                         DirectoryServer.SHARED_SECRET_KEY
@@ -83,7 +83,6 @@ public class CalculatorServer {
         }
     }
 
-    // --- Métodos utilitários de segurança ---
     private void sendSecureMessage(PrintWriter out, String plainMessage, byte[] key) throws Exception {
         byte[] data = plainMessage.getBytes(StandardCharsets.UTF_8);
         byte[] encryptedData = SecurityUtils.encrypt(key, data);

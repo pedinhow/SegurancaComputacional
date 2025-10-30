@@ -30,33 +30,32 @@ public class CalculationHandler implements Runnable {
 
             System.out.println("[CalcHandler] Mensagem de cálculo recebida (bruta): " + receivedLine);
             try {
-                // 1. Decodificar e Verificar Segurança
+                // decodificar e verificar Segurança
                 String[] parts = receivedLine.split("::");
                 if (parts.length != 2) throw new SecurityException("Formato inválido.");
                 byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
                 byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
 
-                // 2. Verificar HMAC
+                // verificar HMAC
                 boolean isHmacValid = SecurityUtils.checkHmac(this.sharedKey, encryptedData, receivedHmac);
                 if (!isHmacValid) throw new SecurityException("HMAC inválido.");
                 System.out.println("[CalcHandler] HMAC verificado.");
 
-                // 3. Decifrar
+                // decifrar
                 byte[] decryptedData = SecurityUtils.decrypt(this.sharedKey, encryptedData);
                 String command = new String(decryptedData, StandardCharsets.UTF_8);
                 System.out.println("[CalcHandler] Comando decifrado: " + command);
 
-                // 4. Processar o cálculo
+                // processar o cálculo
                 String response = calculate(command);
 
-                // 5. Enviar resposta segura
+                // enviar resposta segura
                 sendSecureMessage(out, response, this.sharedKey);
 
             } catch (Exception e) {
                 System.err.println("[CalcHandler] Erro de segurança ou cálculo: " + e.getMessage());
             }
         } catch (Exception e) {
-            // Silencioso
         } finally {
             try {
                 socket.close();

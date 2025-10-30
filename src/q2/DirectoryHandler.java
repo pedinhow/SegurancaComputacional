@@ -36,7 +36,7 @@ public class DirectoryHandler implements Runnable {
             while ((receivedLine = in.readLine()) != null) {
                 System.out.println("\n[DirHandler] Mensagem recebida (bruta): " + receivedLine);
                 try {
-                    // 1. Decodificar e Verificar Segurança
+                    // decodificar e verificar segurança
                     String[] parts = receivedLine.split("::");
                     if (parts.length != 2) {
                         System.err.println("[DirHandler] ERRO: Formato inválido. Descartando.");
@@ -45,23 +45,23 @@ public class DirectoryHandler implements Runnable {
                     byte[] receivedHmac = ConverterUtils.hex2Bytes(parts[0]);
                     byte[] encryptedData = ConverterUtils.hex2Bytes(parts[1]);
 
-                    // 2. Verificar HMAC [cite: 262, 264]
+                    // verificar HMAC
                     boolean isHmacValid = SecurityUtils.checkHmac(this.sharedKey, encryptedData, receivedHmac);
                     if (!isHmacValid) {
                         System.err.println("[DirHandler] FALHA DE SEGURANÇA: HMAC inválido. Mensagem descartada.");
-                        continue; // Requisito: O servidor deve descartar a mensagem [cite: 265]
+                        continue; // requisito o servidor deve descartar a mensagem
                     }
                     System.out.println("[DirHandler] HMAC verificado com sucesso.");
 
-                    // 3. Decifrar [cite: 261]
+                    // decifrar
                     byte[] decryptedData = SecurityUtils.decrypt(this.sharedKey, encryptedData);
                     String command = new String(decryptedData, StandardCharsets.UTF_8);
                     System.out.println("[DirHandler] Comando decifrado: " + command);
 
-                    // 4. Processar o comando
+                    // processar o comando
                     String response = processCommand(command);
 
-                    // 5. Enviar resposta segura
+                    // enviar resposta segura
                     sendSecureMessage(out, response, this.sharedKey);
 
                 } catch (Exception e) {
@@ -82,7 +82,7 @@ public class DirectoryHandler implements Runnable {
         String operation = parts[0].toUpperCase();
 
         switch (operation) {
-            case "REGISTER": // Enviado por um CalculatorServer [cite: 249]
+            case "REGISTER": // enviado por um CalculatorServer
                 if (parts.length < 3) return "ERROR;Formato inválido. Use: REGISTER <servico> <host:porta>";
                 String service = parts[1].toUpperCase();
                 String address = parts[2];
@@ -93,7 +93,7 @@ public class DirectoryHandler implements Runnable {
                 System.out.println("[DirHandler] Serviço registrado: " + service + " em " + address);
                 return "OK;Serviço " + service + " registrado em " + address;
 
-            case "DISCOVER": // Enviado por um CalculatorClient [cite: 251]
+            case "DISCOVER":
                 if (parts.length < 2) return "ERROR;Formato inválido. Use: DISCOVER <servico>";
                 String serviceToFind = parts[1].toUpperCase();
                 List<String> servers = serviceMap.get(serviceToFind);
@@ -101,7 +101,7 @@ public class DirectoryHandler implements Runnable {
                     return "ERROR;Serviço não encontrado: " + serviceToFind;
                 }
 
-                // Lógica de Load Balancing - Round Robin [cite: 258]
+                // logica do roundrobin
                 int index = roundRobinMap.compute(serviceToFind, (k, v) -> (v == null) ? 0 : (v + 1));
                 String chosenServer = servers.get(index % servers.size());
                 System.out.println("[DirHandler] Descoberta: " + serviceToFind + " -> " + chosenServer + " (Round Robin)");

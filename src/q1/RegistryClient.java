@@ -15,11 +15,11 @@ public class RegistryClient {
     private static final int PORT = 12345;
 
     // chave secreta
-    private static final byte[] SHARED_SECRET_KEY = MiniDNSServer.SHARED_SECRET_KEY;
+    // private static final byte[] SHARED_SECRET_KEY = MiniDNSServer.SHARED_SECRET_KEY;
 
     // para testar a falha TODO descomente
-    // private static final byte[] SHARED_SECRET_KEY =
-    //    "chave-do-atacante".getBytes(StandardCharsets.UTF_8);
+     private static final byte[] SHARED_SECRET_KEY =
+        "chave-do-atacante".getBytes(StandardCharsets.UTF_8);
 
     public static void main(String[] args) {
         try (

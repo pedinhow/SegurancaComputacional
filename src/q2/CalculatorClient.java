@@ -39,16 +39,14 @@ public class CalculatorClient {
                     System.out.print("> ");
                     continue;
                 }
-                // O serviço é a operação (ex: "SOMA")
                 String service = commandParts[0].toUpperCase();
 
                 try {
-                    // 1. Descobrir o serviço [cite: 251]
+                    // descobrir o serviço
                     String serverAddress = discoverService(service);
                     System.out.println("Serviço '" + service + "' encontrado em: " + serverAddress + " (via Round Robin)");
 
-                    // 2. Executar o cálculo
-                    // O comando enviado ao worker é o input inteiro (ex: "SOMA 10 20")
+                    // executar o cálculo
                     String result = executeCalculation(serverAddress, userInput);
                     System.out.println("Resultado: " + result);
 
@@ -77,9 +75,9 @@ public class CalculatorClient {
 
             String plainResponse = processSecureResponse(response, SHARED_SECRET_KEY, "DirServer");
             if (plainResponse.startsWith("OK;")) {
-                return plainResponse.substring(3); // Retorna o endereço (ex: "172.17.232.64:9001")
+                return plainResponse.substring(3); // retorna o endereço
             } else {
-                throw new RuntimeException(plainResponse); // Ex: "ERROR;Serviço não encontrado"
+                throw new RuntimeException(plainResponse);
             }
         }
     }
@@ -94,7 +92,7 @@ public class CalculatorClient {
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
         ) {
-            // Envia o comando de cálculo (ex: "SOMA 10 20")
+            // envia o comando de cálculo
             sendSecureMessage(out, command, SHARED_SECRET_KEY);
 
             String response = in.readLine();
@@ -104,12 +102,12 @@ public class CalculatorClient {
             if (plainResponse.startsWith("OK;")) {
                 return plainResponse.substring(3); // Retorna o resultado
             } else {
-                return plainResponse; // Retorna a mensagem de erro
+                return plainResponse; // retorna a mensagem de erro
             }
         }
     }
 
-    // --- Métodos utilitários de segurança ---
+    // metodos de seguranca
     private static void sendSecureMessage(PrintWriter out, String plainMessage, byte[] key) throws Exception {
         byte[] data = plainMessage.getBytes(StandardCharsets.UTF_8);
         byte[] encryptedData = SecurityUtils.encrypt(key, data);

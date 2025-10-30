@@ -15,11 +15,11 @@ public class QueryClient {
     private static final int PORT = 12345;
 
     // chave secreta compartilhada
-    private static final byte[] SHARED_SECRET_KEY = MiniDNSServer.SHARED_SECRET_KEY;
+    // private static final byte[] SHARED_SECRET_KEY = MiniDNSServer.SHARED_SECRET_KEY;
 
     // para testar a falha TODO descomentar
-    // private static final byte[] SHARED_SECRET_KEY =
-    //    "chave-errada".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] SHARED_SECRET_KEY =
+        "chave-errada".getBytes(StandardCharsets.UTF_8);
 
     public static void main(String[] args) {
         try (
